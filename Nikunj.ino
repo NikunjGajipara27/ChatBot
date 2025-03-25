@@ -8,7 +8,7 @@
 // WiFi Credentials
 const char* ssid = "Aldxhc";            // 🔹 Replace with your WiFi name
 const char* password = "1234567890";    // 🔹 Replace with your WiFi password
-const char* server_url = "http://192.168.123.176:8000/chat";  // 🔹 Replace with your FastAPI server IP
+const char* server_url = "http://192.168.42.176:8000/chat";  // 🔹 Replace with your FastAPI server IP
 
 // OLED Display Configuration
 #define SCREEN_WIDTH 128
@@ -21,6 +21,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 void setup() {
     Serial.begin(115200);
+    delay(1000);  // Ensure Serial Monitor is ready
 
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW); // Ensure LED is off at start
@@ -56,7 +57,7 @@ void setup() {
 String getAIResponse(String userInput) {
     if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
-        http.begin("http://192.168.123.176:8000/chat");  // Use your actual FastAPI IP
+        http.begin("http://192.168.42.176:8000/chat");  // Use your actual FastAPI IP
         http.addHeader("Content-Type", "application/json");
 
         // Prepare JSON Payload with the user's question
@@ -71,8 +72,13 @@ String getAIResponse(String userInput) {
 
             // Parse JSON response
             DynamicJsonDocument doc(1024);
-            deserializeJson(doc, payload);
-            response = doc["response"].as<String>();
+            DeserializationError error = deserializeJson(doc, payload);
+            if (error) {
+                Serial.println("JSON Parsing Error!");
+                response = "Error!";
+            } else {
+                response = doc["response"].as<String>();
+            }
 
             // 🔹 Blink LED only when response is received
             digitalWrite(LED_PIN, HIGH);
@@ -80,13 +86,17 @@ String getAIResponse(String userInput) {
             digitalWrite(LED_PIN, LOW);
         } else {
             Serial.println("Error in HTTP request");
+            Serial.println(httpResponseCode);
             response = "Error!";
         }
-        http.end();
+        http.end();  // 🔹 Ensure HTTP connection is properly closed
+        delay(500);  // 🔹 Short delay to allow next request
         return response;
     }
     return "No WiFi!";
 }
+
+
 
 void scrollText(String text) {
     int textWidth = text.length() * 6;  // Approximate width of text in pixels
@@ -97,7 +107,7 @@ void scrollText(String text) {
         display.setCursor(x, 10);
         display.print(text);
         display.display();
-        delay(100);  // Adjust speed of scrolling
+        delay(10);  // Adjust speed of scrolling
     }
 }
 
@@ -105,10 +115,8 @@ void scrollText(String text) {
 void loop() {
     Serial.println("Waiting for user input...");
     
-    // Wait for user to type a message in Serial Monitor
-    while (Serial.available() == 0) {
-        // Do nothing, just wait for input
-    }
+    // Wait for user input via Serial Monitor
+    while (Serial.available() == 0) {}
 
     // Read user input
     String userInput = Serial.readStringUntil('\n');  
@@ -119,12 +127,9 @@ void loop() {
         Serial.println(userInput);
 
         // Send input to FastAPI server
-        String aiResponse = getAIResponse(userInput);
+        String aiResponse = getAIResponse(userInput);  // ✅ FIXED - Pass userInput as an argument
 
         // Display response on OLED
         scrollText(aiResponse);
     }
 }
-
-
-
